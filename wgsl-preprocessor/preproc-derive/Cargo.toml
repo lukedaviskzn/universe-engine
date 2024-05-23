@@ -1,0 +1,13 @@
+[package]
+name = "preproc-derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+preproc-core = { version = "0.1.0", path = "../preproc-core" }
+proc-macro2 = "1.0.82"
+quote = "1.0"
+syn = "2.0.63"

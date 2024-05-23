@@ -1,0 +1,32 @@
+[package]
+name = "universe-engine"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.86"
+bincode = { version = "1.3.3", features = ["i128"] }
+bytemuck = { version = "1.15.0", features = ["derive"] }
+clap = { version = "4.5.4", features = ["derive"] }
+csv = "1.3.0"
+env_logger = "0.11.3"
+fixed = { version = "1.27.0", features = ["serde"] }
+fixed-macro = "1.2.0"
+flate2 = "1.0.30"
+glam = { version = "0.27.0", features = ["serde", "bytemuck"] }
+glob = "0.3.1"
+image = "0.25.1"
+log = "0.4.21"
+maplit = "1.0.2"
+pollster = "0.3.0"
+rand = "0.8.5"
+ron = { version = "0.8.1", features = ["integer128"] }
+semver = { version = "1.0.23", features = ["serde"] }
+serde = { version = "1.0.201", features = ["serde_derive"] }
+static_assertions = "1.1.0"
+thiserror = "1.0.61"
+wgpu = "0.20.0"
+wgsl-preprocessor = { version = "0.1.0", path = "wgsl-preprocessor" }
+winit = "0.29.0"
