@@ -85,7 +85,7 @@ impl Universe {
         for star in stars {
             let temperature = ci_temperature(star.colour_index);
             let brightness = abs_mag_brightness(star.abs_mag);
-            let mut colour = temperature_rgb(temperature) * brightness;
+            let colour = temperature_rgb(temperature) * brightness;
 
             // if star.name == "Gacrux" || star.name == "Acrux" || star.name == "Mimosa" || star.name == "Imai" {
             //     colour *= glam::DVec3::Y;
@@ -101,8 +101,8 @@ impl Universe {
         Ok(universe)
     }
 
-    pub fn all_visible_from(&mut self, point: Vec3F, fovy_factor: f32) -> Vec<CellVisibility> {
-        self.root.all_visible_from(point, fovy_factor, &mut generate_cell)
+    pub fn all_visible_from(&mut self, point: Vec3F, fovy: f32, screen_height: u32) -> Vec<CellVisibility> {
+        self.root.all_visible_from(point, fovy, screen_height, &mut generate_cell)
     }
 }
 

@@ -94,7 +94,8 @@ impl From<(bool, bool, bool)> for Octant {
 pub struct Sector {
     id: u128,
     /// (min, max)
-    bounds: (Vec3F, Vec3F),
+    // bounds: (Vec3F, Vec3F),
+    half: Vec3F,
     centre: Vec3F,
     luminosity: glam::DVec3,
     depth: usize,
@@ -107,17 +108,21 @@ impl Sector {
     }
     
     fn with_depth(id: u128, bound_min: Vec3F, bound_max: Vec3F, luminosity: glam::DVec3, depth: usize) -> Self {
+        let centre = (bound_min + bound_max) / 2.0;
         Self {
             id,
-            bounds: (bound_min, bound_max),
-            centre: (bound_min + bound_max) / 2.0,
+            // bounds: (bound_min, bound_max),
+            half: bound_max - centre,
+            centre,
             luminosity,
             depth,
         }
     }
 
     fn octant(&self, point: Vec3F) -> Option<Octant> {
-        let (min, max) = self.bounds;
+        // let (min, max) = self.bounds;
+        let min = self.centre - self.half;
+        let max = self.centre + self.half;
         if point.x < min.x || point.y < min.y || point.z < min.z || max.x <= point.x || max.y <= point.y || max.z <= point.z {
             return None;
         }
@@ -126,7 +131,8 @@ impl Sector {
     }
 
     fn dimensions(&self) -> Vec3F {
-        self.bounds.1 - self.bounds.0
+        // self.bounds.1 - self.bounds.0
+        self.half * 2.0
     }
 
     pub fn id(&self) -> u128 {
@@ -301,32 +307,31 @@ impl Cell {
         att * att
     }
 
-    pub fn visible_from(&self, point: Vec3F, fovy_factor: f32) -> bool {
-        let dist = Into::<glam::DVec3>::into(self.sector.centre - point).length() - self.sector.dimensions().max().to_num::<f64>();
-
-        // nearby or within cell
-        if dist <= 0.0 {
-            // is there anything to see?
-            return self.sector.luminosity.max_element() > 0.0;
+    pub fn visible_from(&self, point: Vec3F, fovy: f32, screen_height: u32) -> bool {
+        // empty cell
+        if self.sector.luminosity.max_element() <= 0.0 {
+            return false;
         }
 
-        let att = Self::attenuation(dist, 1.0) * fovy_factor as f64;
+        let dist = Into::<glam::DVec3>::into(self.sector.centre - point).length() - self.sector.dimensions().max().to_num::<f64>();
+        // nearby or within cell
+        if dist <= 0.0 { return true; }
 
-        // so far away, that it's not even a pixel in width
-        (self.sector.luminosity.max_element() / att) > Self::MIN_BRIGHTNESS
+        let s = self.sector.dimensions().max().to_num::<f64>() * fovy as f64 * screen_height as f64 / dist;
+        s > 0.5
     }
 
     // this value is purposefully extremely small, we want the leaf nodes to show even if there is only the slightest chance they will be visible,
     // especially given that point lights use additive blending, they may still be visible if overlapping
-    const MIN_BRIGHTNESS: f64 = 0.01 / 255.0; // brightness below which not visible
+    // const MIN_BRIGHTNESS: f64 = 0.01 / 255.0; // brightness below which not visible
     const MESH_COMBINE_THRESHOLD: usize = 8192;
 
-    pub fn all_visible_from<F: Fn(u128, (Vec3F, Vec3F), glam::DVec3) -> Cell>(&mut self, point: Vec3F, fovy_factor: f32, generate_cell: &mut F) -> Vec<CellVisibility> {
+    pub fn all_visible_from<F: Fn(u128, (Vec3F, Vec3F), glam::DVec3) -> Cell>(&mut self, point: Vec3F, fovy: f32, screen_height: u32, generate_cell: &mut F) -> Vec<CellVisibility> {
         let mut points = vec![];
         let mut visibility = vec![];
         
         // not visible, neither will children be visible
-        if !self.visible_from(point, fovy_factor) {
+        if !self.visible_from(point, fovy, screen_height) {
             return visibility;
         }
 
@@ -334,7 +339,7 @@ impl Cell {
             let child = &mut self.children[octant as usize];
             match child {
                 Node::Cell(child) => {
-                    let child_visibility = child.all_visible_from(point, fovy_factor, generate_cell);
+                    let child_visibility = child.all_visible_from(point, fovy, screen_height, generate_cell);
                     // combine small cells into larger ones
                     if child_visibility.iter().map(|c| c.bodies.len()).sum::<usize>() < Self::MESH_COMBINE_THRESHOLD {
                         points.extend(child_visibility.into_iter().map(|c| c.bodies).flatten());
@@ -343,25 +348,20 @@ impl Cell {
                     }
                 },
                 Node::Leaf(leaf) => {
+                    // if the parent is visible, just assume all bodies are visible
                     for child in &leaf.children {
-                        let dist = Into::<glam::DVec3>::into(child.position() - point).length();
-                        let att = Self::attenuation(dist, 1.0);
-
-                        // child is visible
-                        if child.luminosity().max_element() / att > Self::MIN_BRIGHTNESS {
-                            points.push(PointLight {
-                                position: child.position(),
-                                diameter: child.diameter(),
-                                colour: child.luminosity(),
-                                is_body: true,
-                            });
-                        }
+                        points.push(PointLight {
+                            position: child.position(),
+                            diameter: child.diameter(),
+                            colour: child.luminosity(),
+                            is_body: true,
+                        });
                     }
                 },
                 Node::Unloaded(id) => {
                     let cell = {
-                        let half = self.sector.centre - self.sector.bounds.0;
-                        let min = self.sector.bounds.0 + Vec3F::from(octant) * half;
+                        let half = self.sector.half;
+                        let min = self.sector.centre - self.sector.half + Vec3F::from(octant) * half;
                         let max = min + half;
                         generate_cell(*id, (min, max), self.sector.luminosity / 8.0)
                     };
@@ -405,8 +405,8 @@ impl Cell {
         let Node::Leaf(leaf) = &mut self.children[octant as usize] else { return; }; // already subdivided
         let bodies = leaf.children.drain(..).collect::<Vec<_>>();
         
-        let half = self.sector.centre - self.sector.bounds.0;
-        let min = self.sector.bounds.0 + Vec3F::from(octant) * half;
+        let half = self.sector.half;
+        let min = self.sector.centre - self.sector.half + Vec3F::from(octant) * half;
         let max = min + half;
 
         self.children[octant as usize] = Node::Cell(Box::new(Cell::with_depth(min, max, glam::DVec3::ZERO, self.sector.depth + 1, Sector::id_push(self.sector.id, octant))));

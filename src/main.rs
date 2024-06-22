@@ -45,7 +45,7 @@ struct State<'a> {
     fovy_factor: render::UniformBuffer<f32>,
     fovy_factor_bind_group: wgpu::BindGroup,
     vis_rx: mpsc::Receiver<Vec<StarBuffer>>,
-    vis_tx: Option<mpsc::Sender<(Vec3F, f32)>>,
+    vis_tx: Option<mpsc::Sender<(Vec3F, f32, u32)>>,
     vis_handle: Option<std::thread::JoinHandle<()>>,
     star_buffers: Vec<StarBuffer>,
 }
@@ -101,7 +101,7 @@ impl<'a> State<'a> {
 
         let depth = render::Texture::new_depth(&renderer, size.width, size.height);
 
-        let camera = render::Camera::new(transform::Transform::with_translation(Vec3F::from_f64s(1.543e+11, 0.0, 1.0e14)), std::f32::consts::FRAC_PI_2, 1.0);
+        let camera = render::Camera::new(transform::Transform::with_translation(Vec3F::from_f64s(1.543e+11, 0.0, 1.0e14)), std::f32::consts::FRAC_PI_2);
         let camera_uniform = render::UniformBuffer::new(Arc::clone(&renderer), camera.perspective(1.0));
 
         let camera_layout = camera_uniform.bind_group_layout();
@@ -253,14 +253,14 @@ impl<'a> State<'a> {
                             Err(mpsc::TryRecvError::Empty) => if camera_pos.is_some() {
                                 break;
                             } else {
-                                let Ok((cam_pos, fovy_factor)) = rx.recv() else { break 'outer };
-                                camera_pos = Some((cam_pos, fovy_factor));
+                                let Ok((cam_pos, fovy, screen_height)) = rx.recv() else { break 'outer };
+                                camera_pos = Some((cam_pos, fovy, screen_height));
                             },
                         }
                     }
-                    let (camera_pos, fovy_factor) = camera_pos.expect("unreachable");
+                    let (camera_pos, fovy, screen_height) = camera_pos.expect("unreachable");
 
-                    let visible = universe.all_visible_from(camera_pos, fovy_factor);
+                    let visible = universe.all_visible_from(camera_pos, fovy, screen_height);
         
                     for (fresh, _, _) in star_cache.values_mut() {
                         *fresh = false;
@@ -406,7 +406,7 @@ impl<'a> State<'a> {
         {
             // send camera position to visibility thread, return immediately if visibility thread shutting down
             let Some(tx) = self.vis_tx.as_ref() else { return Ok(()); };
-            let Ok(_) = tx.send((self.camera.transform.translation, fovy_factor)) else { return Ok(()); };
+            let Ok(_) = tx.send((self.camera.transform.translation, self.camera.fovy, self.size.height)) else { return Ok(()); };
         }
 
         if let Ok(v) = self.vis_rx.try_recv() {
