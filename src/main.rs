@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File, io::Write, sync::{mpsc, Arc}, time::In
 use clap::Parser;
 use flate2::write::GzEncoder;
 use fp::Vec3F;
-use wgpu::{core::identity, util::DeviceExt};
+use wgpu::util::DeviceExt;
 use winit::{event::{ElementState, Event, KeyEvent, WindowEvent}, event_loop::EventLoop, keyboard::{KeyCode, PhysicalKey}, window::{Window, WindowBuilder}};
 
 #[macro_use]
@@ -101,7 +101,7 @@ impl<'a> State<'a> {
 
         let depth = render::Texture::new_depth(&renderer, size.width, size.height);
 
-        let camera = render::Camera::new(transform::Transform::with_translation(Vec3F::from_f64s(1.543e+11, 0.0, 1.0e14)), std::f32::consts::FRAC_PI_2);
+        let camera = render::Camera::new(transform::Transform::with_translation(Vec3F::from_f64s(1.543e+11, 0.0, 1.0e17)), std::f32::consts::FRAC_PI_2);
         let camera_uniform = render::UniformBuffer::new(Arc::clone(&renderer), camera.perspective(1.0));
 
         let camera_layout = camera_uniform.bind_group_layout();
