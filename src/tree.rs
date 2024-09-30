@@ -25,7 +25,6 @@ impl Body {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)] // SAFETY: do not edit octant without changing conversion in Sector::tree_coord().
 pub enum Octant {
     NxNyNz,
     NxNyPz,
@@ -159,8 +158,6 @@ impl Sector {
     fn tree_coord(mut id: u128) -> Vec<Octant> {
         let mut out = Vec::with_capacity(Cell::MAX_DEPTH);
         while id > Self::ID_ROOT {
-            // SAFETY: octant will always have no more than 8 members
-            // out.push(unsafe { std::mem::transmute((id % 8) as u8) });
             out.push(Octant::ALL[(id % 8) as usize]);
             id /= 8;
         }
