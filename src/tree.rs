@@ -245,7 +245,9 @@ pub struct Cell {
 }
 
 impl Cell {
-    pub const MAX_DEPTH: usize = 40; // 2^92m / 2^40 = 2^52m ~= 0.48ly
+    // 1ly ~= 2^53
+    // pub const MAX_DEPTH: usize = 40; // 2^92m / 2^40 = 2^52m ~= 0.48ly
+    pub const MAX_DEPTH: usize = 30; // 2^92m / 2^30 = 2^52m ~= 487ly
 
     /// inclusive min, exclusive max
     pub fn new(bound_min: Vec3F, bound_max: Vec3F, luminosity: glam::DVec3) -> Self {
@@ -324,7 +326,7 @@ impl Cell {
     // this value is purposefully extremely small, we want the leaf nodes to show even if there is only the slightest chance they will be visible,
     // especially given that point lights use additive blending, they may still be visible if overlapping
     // const MIN_BRIGHTNESS: f64 = 0.01 / 255.0; // brightness below which not visible
-    const MESH_COMBINE_THRESHOLD: usize = 8192;
+    const MESH_COMBINE_THRESHOLD: usize = 8192*16;
 
     pub fn all_visible_from<F: Fn(u128, (Vec3F, Vec3F), glam::DVec3) -> Cell>(&mut self, point: Vec3F, fovy: f32, screen_height: u32, generate_cell: &mut F) -> Vec<CellVisibility> {
         let mut points = vec![];
