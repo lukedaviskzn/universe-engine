@@ -75,14 +75,19 @@ impl Universe {
 
         let mut stars = Vec::new();
 
-        log::info!("loading star catalogues");
+        log::info!("loading star catalogues...");
         for path in mod_fs.read_dir("catalogues/stars")? {
             let catalogue = mod_fs.decompress_bin::<StarCatalogue>(&path)?;
             log::info!("loaded star catalogue {:?} ({} stars)", path.file_name().expect("attempted to open a non-file star catalogue"), catalogue.stars.len());
             stars.extend(catalogue.stars);
         }
 
-        for star in stars {
+        let num_stars = stars.len();
+
+        log::info!("loaded {num_stars} stars");
+
+        log::info!("populating octree with {num_stars} stars");
+        for (i, star) in stars.into_iter().enumerate() {
             let temperature = ci_temperature(star.colour_index);
             let brightness = abs_mag_brightness(star.abs_mag);
             let colour = temperature_rgb(temperature) * brightness;
@@ -91,12 +96,20 @@ impl Universe {
             //     colour *= glam::DVec3::Y;
             // }
 
+            if i % (num_stars / 4) == 0 || i == num_stars - 1 {
+                log::info!("populating octree with {num_stars} stars: {:.1}%", i as f32 / num_stars as f32 * 100.0);
+            } else if i % (num_stars / 10) == 0 {
+                log::debug!("populating octree with {num_stars} stars: {:.1}%", i as f32 / num_stars as f32 * 100.0);
+            } else if i % (num_stars / 25) == 0 {
+                log::trace!("populating octree with {num_stars} stars: {:.1}%", i as f32 / num_stars as f32 * 100.0);
+            }
+
             universe.root.add_body(Body {
                 position: star.pos,
                 colour,
             });
         }
-        log::info!("placed stars in octree");
+        log::info!("populated octree");
 
         Ok(universe)
     }

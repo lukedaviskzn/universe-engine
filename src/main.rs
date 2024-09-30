@@ -153,7 +153,7 @@ impl<'a> State<'a> {
             (hdr_texture, hdr_layout, hdr_bind_group)
         };
 
-        let main_pipeline = render::Pipeline::new(Arc::clone(&renderer), &wgsl_preprocessor::preprocess!("shaders/shader.wgsl").0, wgpu::PrimitiveTopology::PointList, render::Texture::HDR_FORMAT, true, &[render::Vertex::LAYOUT, render::Instance::LAYOUT], &[&camera_layout, &rads_per_pixel_layout, &model_layout], render::BlendMode::Add).unwrap();
+        let main_pipeline = render::Pipeline::new(Arc::clone(&renderer), &wgsl_preprocessor::preprocess!("shaders/shader.wgsl").0, wgpu::PrimitiveTopology::PointList, render::Texture::HDR_FORMAT, false, &[render::Vertex::LAYOUT, render::Instance::LAYOUT], &[&camera_layout, &rads_per_pixel_layout, &model_layout], render::BlendMode::Add).unwrap();
         let tonemap_pipeline = render::Pipeline::new(Arc::clone(&renderer), &wgsl_preprocessor::preprocess!("shaders/postprocess/tonemap.wgsl").0, wgpu::PrimitiveTopology::TriangleStrip, config.format, false, &[], &[&hdr_buffer.1], render::BlendMode::Normal).unwrap();
 
         let render_graph = {
@@ -258,9 +258,13 @@ impl<'a> State<'a> {
                             },
                         }
                     }
+                    
+                    log::debug!("calculating visibility");
+                    
                     let (camera_pos, fovy, screen_height) = camera_pos.expect("unreachable");
 
                     let visible = universe.all_visible_from(camera_pos, fovy, screen_height);
+                    log::debug!("found {} visible regions", visible.len());
         
                     for (fresh, _, _) in star_cache.values_mut() {
                         *fresh = false;
@@ -268,6 +272,9 @@ impl<'a> State<'a> {
 
                     let num_bodies: usize = visible.iter().map(|c| c.bodies.iter().map(|b| b.is_body as usize)).flatten().sum();
                     let total: usize = visible.iter().map(|c| c.bodies.len()).sum();
+
+                    log::debug!("{} visible regions contain {total} bodies", visible.len());
+                    log::debug!("generating {} meshes...", visible.len() );
             
                     for cell_v in visible {
                         // if stars already cached, just update model matrix
@@ -288,6 +295,8 @@ impl<'a> State<'a> {
                         star_cache.insert(cell_v, (true, pos, Arc::new(render::Mesh::new(&renderer, &vertices))));
                     }
                     
+                    log::debug!("generated meshes");
+                    
                     {
                         let mut old = vec![];
                         
@@ -297,12 +306,14 @@ impl<'a> State<'a> {
                             }
                         }
             
+                        log::debug!("clearing mesh cache of {} outdated meshes", old.len());
+                        
                         for k in old {
                             star_cache.remove(&k);
                         }
                     }
 
-                    log::debug!("calculated visibility: {num_bodies} bodies, {} point approx, {total} total", total - num_bodies);
+                    log::info!("calculated visibility: {num_bodies} bodies, {} point approx, {total} total", total - num_bodies);
 
                     let mut v = vec![];
 
@@ -391,7 +402,7 @@ impl<'a> State<'a> {
     }
 
     fn update(&mut self) {
-        self.camera.transform.translation -= Vec3F::Z * 1.543e+11;
+        self.camera.transform.translation -= Vec3F::Z * 1.543e+14;
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -445,14 +456,15 @@ impl<'a> State<'a> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
+                // depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                //     view: &self.depth.view,
+                //     depth_ops: Some(wgpu::Operations {
+                //         load: wgpu::LoadOp::Clear(1.0),
+                //         store: wgpu::StoreOp::Store,
+                //     }),
+                //     stencil_ops: None,
+                // }),
+                depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
